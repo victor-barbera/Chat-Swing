@@ -1,6 +1,7 @@
 # Chat amb Client Swing
 
 Projecte per la asignatura de SAD de la UPC.
+
 📌 Observació: un usuari no visualitza a un altre usuari fins que no reb un missatge d'aquest.
 
 ## Instruccions d'execució
