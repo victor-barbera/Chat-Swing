@@ -25,13 +25,11 @@ public class ClientChat {
                 e.printStackTrace();
             }
         }
-        System.out.printf("port: %s",port);
-        System.out.printf("ip: %s",ip);
-
+        System.out.printf("port: %s", port);
+        System.out.printf("ip: %s", ip);
 
         mon = new Monitor();
         chatGui = new GUI(mon, userName);
-        chatGui.createAndShowGUI();
         s = new MySocket(ip, Integer.parseInt(port));
         s.println(userName);
         send = new SendData(s, chatGui);
@@ -146,68 +144,7 @@ class ParametersGUI extends JFrame implements ActionListener {
     }
 }
 
-class SendData extends Thread {
-    public MySocket s;
-    public GUI gui;
-    public int i;
-  
-    public SendData(MySocket s, GUI gui) {
-      this.s = s;
-      this.gui = gui;
-      this.i = 0;
-    }
-  
-    public void run() {
-      String line = "";
-      while (true) {
-        try {
-          gui.mon.lock.lock();
-          while (!gui.mon.messageState) {
-            gui.mon.waitingToSend.await();
-          }
-          gui.mon.messageState = false;
-          gui.mon.lock.unlock();
-        } catch (InterruptedException e){e.printStackTrace();}
-        line = gui.mon.getMessage();
-  
-        if (line != null){
-          this.s.println(line);
-        }
-      }
-    }
-  }
-  
-  class GetData extends Thread {
-    public MySocket s;
-    public GUI gui;
-    public int i = 0;
-  
-    public GetData(MySocket s, GUI gui) {
-      this.s = s;
-      this.gui = gui;
-    }
-  
-    public void run() {
-      String line;
-      //int i = 0;
-      while ((line = s.readLine()) != null) {
-        line = removeNonPrintable(line) + "\n";
-        String nick = line.split(":")[0];
-        gui.printMessage(line);
-        gui.addUser(nick);
-      }
-    }
-  
-    public String removeNonPrintable(String text){
-      text = text.replaceAll("[^\\x00-\\x7F]", "");
-      text = text.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
-      text = text.replaceAll("\\p{C}", "");
-      return text.trim();
-    }
-  }
-  
-  class GUI implements ActionListener{
-    JFrame frame;
+class GUI extends JFrame implements ActionListener {
     JPanel panel;
     JButton sendbutton;
     JTextField text;
@@ -219,157 +156,224 @@ class SendData extends Thread {
     public String linetosend;
     Monitor mon;
     String username;
-    String[] users = {""};
+    String[] users = { "" };
     Timeout timeout;
-  
-    public GUI(Monitor mon, String username){
-      this.mon = mon;
-      frame = new JFrame("Chat");
-      panel = new JPanel();
-      sendbutton = new JButton("send");
-      text = new JTextField();
-      messages = new JTextArea();
-      list = new JList<String>();
-      scrollist = new JScrollPane(list);
-      scrollmes = new JScrollPane(messages);
-      gbc = new GridBagConstraints();
-      linetosend = null;
-      this.username = username;
-      users[0] = username;
-      timeout =  new Timeout(this);
-    }
-  
-    public void createAndShowGUI(){
-      try{
-        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-      }catch(Exception e){e.printStackTrace();}
-      panel.setLayout(new GridBagLayout());
-      frame.setDefaultLookAndFeelDecorated(true);
-      frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-      frame.setSize(400,400);
-  
-      list.setListData(this.users);
-      gbc.gridx = 0;
-      gbc.gridy = 0;
-      gbc.gridheight = 1;
-      gbc.gridwidth = 10;
-      gbc.weightx = 10.0;
-      gbc.weighty = 1.0;
-      gbc.fill = GridBagConstraints.BOTH;
-      panel.add(scrollmes,gbc);
-      gbc.gridx = 10;
-      gbc.gridy = 0;
-      gbc.gridheight = 1;
-      gbc.gridwidth = 1;
-      gbc.weightx = 1.0;
-      gbc.weighty = 1.0;
-      gbc.fill = GridBagConstraints.BOTH;
-      panel.add(scrollist,gbc);
-      gbc.gridx = 0;
-      gbc.gridy = 1;
-      gbc.gridheight = 1;
-      gbc.gridwidth = 10;
-      gbc.weightx = 10.0;
-      gbc.weighty = 0.0;
-      gbc.fill = GridBagConstraints.HORIZONTAL;
-      panel.add(text,gbc);
-      gbc.gridx = 10;
-      gbc.gridy = 1;
-      gbc.gridheight = 1;
-      gbc.gridwidth = 1;
-      gbc.weightx = 1.0;
-      gbc.weighty = 0.0;
-      gbc.fill = GridBagConstraints.HORIZONTAL;
-      panel.add(sendbutton,gbc);
-  
-      sendbutton.addActionListener(this);
-      frame.getRootPane().setDefaultButton(sendbutton);
-  
-      frame.add(panel);
-      frame.setVisible(true);
-      timeout.start();
-    }
-  
-    public void actionPerformed(ActionEvent event){
-      mon.lock.lock();
-      mon.setMessage(text.getText() + "\n");
-      printMessage(mon.message);
-      mon.messageState = true;
-      mon.waitingToSend.signal();
-      text.setText("");
-      mon.lock.unlock();
-    }
-  
-    public void printMessage(String mes){
-      messages.append(mes);
-    }
-  
-    public void addUser(String user){
-      int index = -1;
-      int N = this.users.length;
-      for(int i=0; i<N; i++){
-        if (this.users[i].equals(user)){
-          index = i;
-        }
-      }
-      if(index == -1){
-        this.users = Arrays.copyOf(this.users, N + 1);
-        this.users[N] = user;
+
+    public GUI(Monitor mon, String username) {
+        this.mon = mon;
+        setTitle("Chat de SAD");
+        panel = new JPanel();
+        messages = new JTextArea();
+        list = new JList<String>();
         list.setListData(this.users);
-      }
-      timeout.addTime(index);
-      System.out.println(Arrays.toString(this.users));
-    }
-  
-    public void removeUser(int index){
-      String[] tmp = new String[users.length -1 - index];
-      System.arraycopy(users, index + 1, tmp, 0, users.length -1 - index);
-      System.arraycopy(tmp, 0, users, index, users.length -1 - index);
-      users = Arrays.copyOf(users,users.length -1);
-      System.out.println(Arrays.toString(users));
-      list.setListData(this.users);
-    }
-  }
-  
-  class Timeout extends Thread{
-    long[] times = {0};
-    GUI gui;
-  
-    public Timeout(GUI gui){
-      this.gui = gui;
-    }
-  
-    public void run(){
-      while(true){
-        long mintime = 60000;
-        long currentime = System.currentTimeMillis();
-        for(int i=0; i<this.times.length; i++){
-          long resta = currentime - this.times[i];
-          System.out.println(resta);
-          if (resta < mintime){
-            System.out.println("Calculating");
-            mintime = resta;
-          }
-          if((resta != currentime) && (resta >= 60000)){
-            System.out.println("im in");
-            gui.removeUser(i);
-          }
+        gbc = new GridBagConstraints();
+        linetosend = null;
+        this.username = username;
+        users[0] = username;
+        timeout = new Timeout(this);
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        try{
-          System.out.println(mintime);
-          sleep(mintime);
-        }catch(InterruptedException e){e.printStackTrace();}
-      }
+        panel.setLayout(new GridBagLayout());
+        setDefaultLookAndFeelDecorated(true);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(500, 600);
+        setLocation(500, 250);
+
+        scrollmes = new JScrollPane(messages);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridheight = 1;
+        gbc.gridwidth = 10;
+        gbc.weightx = 10.0;
+        gbc.weighty = 1.0;
+        gbc.fill = GridBagConstraints.BOTH;
+        panel.add(scrollmes, gbc);
+
+        scrollist = new JScrollPane(list);
+        gbc.gridx = 10;
+        gbc.gridy = 0;
+        gbc.gridheight = 1;
+        gbc.gridwidth = 1;
+        gbc.weightx = 1.0;
+        gbc.weighty = 1.0;
+        gbc.fill = GridBagConstraints.BOTH;
+        panel.add(scrollist, gbc);
+
+        text = new JTextField();
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.gridheight = 1;
+        gbc.gridwidth = 10;
+        gbc.weightx = 10.0;
+        gbc.weighty = 0.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(text, gbc);
+
+        sendbutton = new JButton("send");
+        gbc.gridx = 10;
+        gbc.gridy = 1;
+        gbc.gridheight = 1;
+        gbc.gridwidth = 1;
+        gbc.weightx = 1.0;
+        gbc.weighty = 0.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(sendbutton, gbc);
+
+        sendbutton.addActionListener(this);
+        getRootPane().setDefaultButton(sendbutton);
+
+        add(panel);
+        setVisible(true);
+        timeout.start();
     }
-  
-    public void addTime(int index){
-      int N = this.times.length;
-      if(index < 0){
-        this.times = Arrays.copyOf(this.times, N + 1);
-        this.times[N] = System.currentTimeMillis();
-      }else if (index >= 0){
-        this.times[index] = System.currentTimeMillis();
-      }
-      System.out.println(Arrays.toString(this.times));
+
+    public void actionPerformed(ActionEvent event) {
+        mon.lock.lock();
+        mon.setMessage(text.getText() + "\n");
+        printMessage(mon.message);
+        mon.messageState = true;
+        mon.waitingToSend.signal();
+        text.setText("");
+        mon.lock.unlock();
     }
-  }
+
+    public void printMessage(String mes) {
+        messages.append(mes);
+    }
+
+    public void addUser(String user) {
+        int index = -1;
+        int N = this.users.length;
+        for (int i = 0; i < N; i++) {
+            if (this.users[i].equals(user)) {
+                index = i;
+            }
+        }
+        if (index == -1) {
+            this.users = Arrays.copyOf(this.users, N + 1);
+            this.users[N] = user;
+            list.setListData(this.users);
+        }
+        timeout.addTime(index);
+        System.out.println(Arrays.toString(this.users));
+    }
+
+    public void removeUser(int index) {
+        String[] tmp = new String[users.length - 1 - index];
+        System.arraycopy(users, index + 1, tmp, 0, users.length - 1 - index);
+        System.arraycopy(tmp, 0, users, index, users.length - 1 - index);
+        users = Arrays.copyOf(users, users.length - 1);
+        System.out.println(Arrays.toString(users));
+        list.setListData(this.users);
+    }
+}
+
+class SendData extends Thread {
+    public MySocket s;
+    public GUI gui;
+    public int i;
+
+    public SendData(MySocket s, GUI gui) {
+        this.s = s;
+        this.gui = gui;
+        this.i = 0;
+    }
+
+    public void run() {
+        String line = "";
+        while (true) {
+            try {
+                gui.mon.lock.lock();
+                while (!gui.mon.messageState) {
+                    gui.mon.waitingToSend.await();
+                }
+                gui.mon.messageState = false;
+                gui.mon.lock.unlock();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            line = gui.mon.getMessage();
+
+            if (line != null) {
+                this.s.println(line);
+            }
+        }
+    }
+}
+
+class GetData extends Thread {
+    public MySocket s;
+    public GUI gui;
+    public int i = 0;
+
+    public GetData(MySocket s, GUI gui) {
+        this.s = s;
+        this.gui = gui;
+    }
+
+    public void run() {
+        String line;
+        // int i = 0;
+        while ((line = s.readLine()) != null) {
+            line = removeNonPrintable(line) + "\n";
+            String nick = line.split(":")[0];
+            gui.printMessage(line);
+            gui.addUser(nick);
+        }
+    }
+
+    public String removeNonPrintable(String text) {
+        text = text.replaceAll("[^\\x00-\\x7F]", "");
+        text = text.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
+        text = text.replaceAll("\\p{C}", "");
+        return text.trim();
+    }
+}
+
+class Timeout extends Thread {
+    long[] times = { 0 };
+    GUI gui;
+
+    public Timeout(GUI gui) {
+        this.gui = gui;
+    }
+
+    public void run() {
+        while (true) {
+            long mintime = 60000;
+            long currentime = System.currentTimeMillis();
+            for (int i = 0; i < this.times.length; i++) {
+                long resta = currentime - this.times[i];
+                System.out.println(resta);
+                if (resta < mintime) {
+                    System.out.println("Calculating");
+                    mintime = resta;
+                }
+                if ((resta != currentime) && (resta >= 60000)) {
+                    System.out.println("im in");
+                    gui.removeUser(i);
+                }
+            }
+            try {
+                System.out.println(mintime);
+                sleep(mintime);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void addTime(int index) {
+        int N = this.times.length;
+        if (index < 0) {
+            this.times = Arrays.copyOf(this.times, N + 1);
+            this.times[N] = System.currentTimeMillis();
+        } else if (index >= 0) {
+            this.times[index] = System.currentTimeMillis();
+        }
+        System.out.println(Arrays.toString(this.times));
+    }
+}
