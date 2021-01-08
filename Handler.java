@@ -72,7 +72,7 @@ class Handler implements Runnable {
                 System.out.println("read(): La conexió amb el client pot haver caigut :'(");
             }
             else {
-                Reactor.workerPool.execute(new Runnable() {
+                ChatReactor.workerPool.execute(new Runnable() {
                     public void run() {
                         process();
                     }

@@ -1,42 +1,92 @@
-import java.util.*;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.Selector;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-public class ChatReactor {
-    private static List<EventHandler> registeredHandlers = new ArrayList<>();
+class ChatReactor extends Thread {
+    final Selector selector;
+    final ServerSocketChannel serverChannel;
+    static final int WORKER_POOL_SIZE = 10;
+    static ExecutorService workerPool;
+    Map<String,SocketChannel> myMap = new ConcurrentHashMap<String,SocketChannel>();
 
-    private static void registerHandler(EventHandler eventHandler) {
-        registeredHandlers.add(eventHandler);
+    ChatReactor(int port) throws IOException {
+        selector = Selector.open();
+        serverChannel = ServerSocketChannel.open();
+        serverChannel.socket().bind(new InetSocketAddress(port));
+        serverChannel.configureBlocking(false);
+        SelectionKey sk = serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+        sk.attach(new Acceptor());
     }
 
-    public static void main(String[] args) {
-        // Handler registration
-        EventHandler eventHandler = new ConcreteEventHandler();
-        registerHandler(eventHandler);
-        while (true) {
-            // Simulate event
-            if (new Random().nextInt(10000000) == 50) {
-                Event event = new Event();
+    public void run() {
+        try {
+            while (true) {
 
-                for (EventHandler handler : registeredHandlers) {
-                    handler.handle(event);
+                selector.select();
+                Iterator it = selector.selectedKeys().iterator();
+
+                while (it.hasNext()) {
+                    SelectionKey sk = (SelectionKey) it.next();
+                    it.remove();
+                    Runnable r = (Runnable) sk.attachment();
+                    if (r != null)
+                        r.run();
                 }
             }
         }
+        catch (IOException ex) {
+            ex.printStackTrace();
+        }
     }
-}
 
-interface EventHandler {
-    void handle(Event event);
-}
+    class Acceptor implements Runnable {
+        Map<String,SocketChannel> myMap = new ConcurrentHashMap<String,SocketChannel>();
 
-class ConcreteEventHandler implements EventHandler {
-    @Override
-    public void handle(Event event) {
-        event.getInfo();
+        public void run() {
+            try {
+                int nbytes = 0;
+                ByteBuffer nameBuffer = ByteBuffer.allocate(1024);
+                SocketChannel channel = serverChannel.accept();
+                nbytes = channel.read(nameBuffer);
+                String name = bytesBufferToString(nameBuffer);
+                if (channel != null && nbytes != -1)
+                    if (myMap.containsKey(name)){
+                        myMap.remove(name);
+                    }
+                    myMap.put(name, channel);
+                    new Handler(selector, channel, name, myMap);
+            }
+            catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
+        public String bytesBufferToString(ByteBuffer buffer){
+            byte[] bytes;
+            buffer.flip();
+            bytes = new byte[buffer.remaining()];
+            buffer.get(bytes, 0, bytes.length);
+            return new String(bytes, Charset.forName("ISO-8859-1"));
+        }
     }
-}
 
-class Event {
-    void getInfo() {
-        System.out.println("Event occurs");
+    public static void main(String[] args) {
+        workerPool = Executors.newFixedThreadPool(WORKER_POOL_SIZE);
+
+        try {
+            new Thread(new ChatReactor(Integer.parseInt(args[0]))).start();
+        }
+        catch (IOException ex) {
+            ex.printStackTrace();
+        }
     }
 }
